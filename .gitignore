@@ -1,0 +1,12 @@
+*.tif
+*.tiff
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.ckpt
+*.log
+*.pyc
+*.db
+*.txt
+*.csv
