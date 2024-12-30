@@ -28,7 +28,7 @@ def get_args():
 
 
 args = get_args()
-exp_name = "gaussnoise"
+exp_name = "qpi"
 dt_string = datetime.now().strftime("%m%d_%H%M_")
 exp_name = dt_string + exp_name
 config = {
@@ -53,8 +53,8 @@ if torch.cuda.is_available():
 device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
 print(device)
 
-train_set = phaseDataset(is_train=True)
-valid_set = phaseDataset(is_train=False)
+train_set = phaseDataset(mode="train")
+valid_set = phaseDataset(mode="valid")
 print(len(train_set))
 print(len(valid_set))
 train_loader = DataLoader(train_set, shuffle=True, batch_size=config["batch_size"])

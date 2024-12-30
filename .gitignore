@@ -2,6 +2,7 @@
 *.tiff
 *.png
 *.jpg
+*.JPG
 *.jpeg
 *.bmp
 *.ckpt

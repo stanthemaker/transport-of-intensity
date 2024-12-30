@@ -74,44 +74,27 @@ def fresnel_prop_torch(u0, z=1e-4, wavelength=6.32e-7):
     return u1
 
 
-# img = Image.open("/home/R13k47024/Stan/tie/data/labelled/PC3/00001_PC3_img.tif")
-# img = np.maximum(img , 0)
-# img = (img - np.min(img)) / (np.max(img) - np.min(img))
-# u0 = np.exp(1j * img * 0.6 * np.pi)
+def histogram_matching(source, template):
+    """
+    Adjust the pixel values of the source image to match the histogram of the template image.
 
-# u1_np =fresnel_prop_np(u0)
-# u1_torch = fresnel_prop_torch(torch.tensor(u0, dtype=torch.complex64))
-# u1_np = torch.from_numpy(u1_np)
-# print(u1_np)
-# print(u1_torch)
-# mse = torch.mean(torch.abs(u1_np - u1_torch) ** 2)
-# print(mse)
+    Parameters:
+        source (np.ndarray): Source image whose histogram is to be matched.
+        template (np.ndarray): Template image whose histogram will be matched to.
 
+    Returns:
+        np.ndarray: The transformed source image.
+    """
+    # Flatten images
+    src_values, src_counts = np.unique(source.flatten(), return_counts=True)
+    tmpl_values, tmpl_counts = np.unique(template.flatten(), return_counts=True)
 
-# Load the .mat file (assumed to contain 'u2' calculated by MATLAB)
-# data = loadmat('u2.mat')
-# u_matlab = data['u1']  # Adjust the key if different
+    # Calculate CDF
+    src_cdf = np.cumsum(src_counts).astype(np.float64) / source.size
+    tmpl_cdf = np.cumsum(tmpl_counts).astype(np.float64) / template.size
 
-# img = io.imread('usaf.png')
-# u0 = np.exp(1j * np.pi * img)
+    # Map source pixel values to template pixel values
+    interp_values = np.interp(src_cdf, tmpl_cdf, tmpl_values)
+    mapped = np.interp(source.flatten(), src_values, interp_values)
 
-# # Parameters
-# dz = 1e-4       # Propagation distance
-# L = 5.12e-4     # Side length
-# wavelength = 6.328e-7  # Wavelength
-
-# # Perform propagation
-# u_py = propTF(u0, L, wavelength, dz)
-
-# # Compare the results
-# difference = np.abs(u_py - u_matlab)
-
-# # Display the difference as an image
-# plt.imshow(difference, cmap='viridis')
-# plt.colorbar()
-# plt.title("Difference between MATLAB and Python u2")
-# plt.savefig('tmp.png')
-
-# # Optionally, compute mean absolute error
-# mae = np.mean(difference)
-# print(f"Mean Absolute Error between MATLAB and Python u2: {mae}")
+    return mapped.reshape(source.shape)
