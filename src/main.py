@@ -8,6 +8,7 @@ from tqdm.auto import tqdm
 from torchvision.transforms import functional as tf
 
 # Customized packages.
+from utils import optimizer_scheduler
 from unet import UNet
 from dataset import phaseDataset
 
@@ -82,6 +83,10 @@ for epoch in tqdm(range(n_epochs)):
 
     for i, batch in enumerate(train_loader):
         # A batch consists of image data and corresponding labels.
+        p = float(i + epoch * len(train_loader)) / n_epochs / len(train_loader)
+        optimizer = optimizer_scheduler(optimizer=optimizer, p=p)
+        optimizer.zero_grad()
+
         I_delta_z, phase_gt = batch
         I_delta_z = I_delta_z.to(device)
         phase_gt = phase_gt.to(device)
@@ -89,7 +94,7 @@ for epoch in tqdm(range(n_epochs)):
         phase_pred = model(I_delta_z)
         loss = loss_func(phase_pred, phase_gt)
 
-        optimizer.zero_grad()
+        # optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         train_loss.append(loss.detach().cpu().numpy())

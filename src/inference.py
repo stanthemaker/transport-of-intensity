@@ -41,7 +41,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(args.model))
     model.eval()
 
-    mode = "experiment"
+    mode = "test_exp"
     test_set = phaseDataset(mode=mode)
     print(len(test_set))
     test_loader = DataLoader(test_set, shuffle=False, batch_size=1)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         y = y.squeeze().numpy()
 
         save_path = os.path.join(args.output, f"{i}.png")
-        if mode == "experiment":
+        if mode.endswith("exp"):
             plt.figure(figsize=(8, 6))
             im = plt.imshow(phase_pred, cmap="viridis")
             plt.title("Prediction")

@@ -1,4 +1,6 @@
 import torch
+from torch import linalg as la
+from torch.nn import functional as F
 import numpy as np
 from scipy.fft import fft2, ifft2, fftshift, ifftshift
 from PIL import Image
@@ -98,3 +100,25 @@ def histogram_matching(source, template):
     mapped = np.interp(source.flatten(), src_values, interp_values)
 
     return mapped.reshape(source.shape)
+
+
+def optimizer_scheduler(optimizer, p, init=1e-2):
+    """
+    Adjust the learning rate of optimizer
+    :param optimizer: optimizer for updating parameters
+    :param p: a variable for adjusting learning rate
+    :return: optimizer
+    """
+    for param_group in optimizer.param_groups:
+        param_group["lr"] = init / (1.0 + 10 * p) ** 0.75
+
+    return optimizer
+
+
+def mdd_loss(feat_src, feat_tgt):
+    batch_size = feat_src.size(0)
+    softmax_src = F.softmax(feat_src, dim=1)
+    softmax_tgt = F.softmax(feat_tgt, dim=1)
+
+    mddloss = la.norm(softmax_src - softmax_tgt, ord=2, dim=1).sum() / float(batch_size)
+    return mddloss

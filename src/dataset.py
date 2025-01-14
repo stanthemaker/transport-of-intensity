@@ -4,10 +4,11 @@ import random
 import numpy as np
 import torchvision as tv
 import matplotlib.pyplot as plt
+from scipy.io import loadmat
 
 from torchvision.transforms import functional as TF
 from PIL import Image
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from torchvision.utils import save_image
 from torch.nn import functional as func
 
@@ -54,24 +55,28 @@ class phaseDataset(Dataset):
                         if file_id % 2 == 1:
                             self.images_list.append(os.path.join(root, file))
 
-        elif mode == "experiment":
+        elif mode == "train_exp":
             path = os.path.join(path, "1220")
-            # for file in os.listdir(path):
-            #     if file.endswith("_050.jpg")
             self.images_list = sorted(
-                [
-                    os.path.join(path, x)
-                    for x in os.listdir(path)
-                    if x.endswith("_050.jpg")
-                ]
+                [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".jpg")]
             )
+            self.gt_list = sorted(
+                [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".mat")]
+            )
+            # self.images_list = self.images_list[:8]
+        elif mode == "test_exp":
+            path = os.path.join(path, "0106")
+            self.images_list = sorted(
+                [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".jpg")]
+            )
+            print(self.images_list)
 
     def __len__(self):
         return len(self.images_list)
 
     def __getitem__(self, idx):
         # x : input I(z=dz), y : groundtruth phi(z=0)
-        if self.mode == "experiment":
+        if self.mode == "test_exp":
             img = Image.open(self.images_list[idx])
             img = np.invert(img)
             x = torch.from_numpy(img).to(torch.float32)
@@ -80,15 +85,34 @@ class phaseDataset(Dataset):
                 size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
             )(x)
             x = x / torch.mean(x)
-            y = 0  # null gt
+            y = torch.zeros(1)
+
+        elif self.mode == "train_exp":
+            img = Image.open(self.images_list[idx])
+            img = np.invert(img)
+            x = torch.from_numpy(img).to(torch.float32)
+            x = x.unsqueeze(dim=0)
+            x = tv.transforms.Resize(
+                size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
+            )(x)
+            x = x / torch.mean(x)
+
+            y = loadmat(self.gt_list[idx])["phi_recon"]
+            y = torch.from_numpy(y).to(torch.float32)
+            y = y.unsqueeze(dim=0)
+            y = tv.transforms.Resize(
+                size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
+            )(y)
 
         else:
+            print(self.images_list[idx])
             img = Image.open(self.images_list[idx])
             img = np.maximum(img, 0)
             img = (img - np.min(img)) / (np.max(img) - np.min(img))
             max_rad = 0.6 * torch.pi
             y = torch.from_numpy(img).unsqueeze(dim=0)
-            y = transform(y)
+            if self.mode == "train_exp":
+                y = transform(y)
             y = y * max_rad
 
             u0 = torch.exp(1j * y)
@@ -109,8 +133,8 @@ class phaseDataset(Dataset):
 
 # dataset = phaseDataset(mode="experiment")
 # print(len(dataset))
-# x, y = dataset.__getitem__(1)
-# plt.hist(x.numpy().flat, bins=100)
+# x, y = dataset.__getitem__(0)
+
 # plt.savefig("temp.png")
 # # print(x.shape)
 # print(y.shape)

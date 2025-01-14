@@ -64,9 +64,6 @@ class Up(nn.Module):
         diffX = x2.size()[3] - x1.size()[3]
 
         x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2])
-        # if you have padding issues, see
-        # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
-        # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
@@ -81,11 +78,10 @@ class OutConv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, in_dim, out_dim, bilinear=True):
+    def __init__(self, in_dim, out_dim, bilinear=True, domain_adapt=False):
         super(UNet, self).__init__()
-        self.n_channels = in_dim
-        self.n_classes = out_dim
         self.bilinear = bilinear
+        self.domain_adapt = domain_adapt
 
         self.inc = DoubleConv(in_dim, 64)
         self.down1 = Down(64, 128)
@@ -100,7 +96,9 @@ class UNet(nn.Module):
         self.outc = OutConv(64, out_dim)
 
     def forward(self, x):
+        # output feature for MDD loss
         x1 = self.inc(x)
+        feat1 = x1
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
@@ -109,8 +107,12 @@ class UNet(nn.Module):
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
+        feat2 = x
         x = self.outc(x)
-        return x
+        if self.domain_adapt:
+            return x, feat1, feat2
+        else:
+            return x
 
     def use_checkpointing(self):
         self.inc = torch.utils.checkpoint(self.inc)
