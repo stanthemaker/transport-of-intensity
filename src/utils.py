@@ -1,9 +1,14 @@
 import torch
-from torch import linalg as la
-from torch.nn import functional as F
 import numpy as np
-from scipy.fft import fft2, ifft2, fftshift, ifftshift
+import scipy
 from PIL import Image
+from torch import linalg as la
+import matplotlib.pyplot as plt
+from torch.nn import functional as F
+from scipy.fft import fft2, ifft2, fftshift, ifftshift
+
+from ignite.engine.engine import Engine
+from ignite.metrics import SSIM
 
 
 def fresnel_prop_np(u0, z=1e-4, L=5.12e-4, wavelength=6.32e-7):
@@ -39,7 +44,7 @@ def fresnel_prop_np(u0, z=1e-4, L=5.12e-4, wavelength=6.32e-7):
     return u1
 
 
-def fresnel_prop_torch(u0, z=1e-4, wavelength=6.32e-7):
+def fresnel_prop_torch(u0, z=10e-6, wavelength=6.32e-7):
     """
     Fresnel propagation using the Transfer function method with PyTorch.
 
@@ -76,32 +81,6 @@ def fresnel_prop_torch(u0, z=1e-4, wavelength=6.32e-7):
     return u1
 
 
-def histogram_matching(source, template):
-    """
-    Adjust the pixel values of the source image to match the histogram of the template image.
-
-    Parameters:
-        source (np.ndarray): Source image whose histogram is to be matched.
-        template (np.ndarray): Template image whose histogram will be matched to.
-
-    Returns:
-        np.ndarray: The transformed source image.
-    """
-    # Flatten images
-    src_values, src_counts = np.unique(source.flatten(), return_counts=True)
-    tmpl_values, tmpl_counts = np.unique(template.flatten(), return_counts=True)
-
-    # Calculate CDF
-    src_cdf = np.cumsum(src_counts).astype(np.float64) / source.size
-    tmpl_cdf = np.cumsum(tmpl_counts).astype(np.float64) / template.size
-
-    # Map source pixel values to template pixel values
-    interp_values = np.interp(src_cdf, tmpl_cdf, tmpl_values)
-    mapped = np.interp(source.flatten(), src_values, interp_values)
-
-    return mapped.reshape(source.shape)
-
-
 def optimizer_scheduler(optimizer, p, init=1e-2):
     """
     Adjust the learning rate of optimizer
@@ -122,3 +101,62 @@ def mdd_loss(feat_src, feat_tgt):
 
     mddloss = la.norm(softmax_src - softmax_tgt, ord=2, dim=1).sum() / float(batch_size)
     return mddloss
+
+
+def masked_MSE(pred, gt):
+    mask = (gt >= 0).float()
+    mse_loss = ((pred - gt) ** 2) * mask
+    return mse_loss.sum() / mask.sum()
+
+
+def eval_step(engine, batch):
+    return batch
+
+
+def normalize_01(tensor):
+    return (tensor - tensor.min()) / (tensor.max() - tensor.min())
+
+
+class phaseSSIM:
+    def __init__(self):
+        self.evaluator = Engine(eval_step)
+        metric = SSIM(data_range=1.0)
+        metric.attach(self.evaluator, "ssim")
+
+    def eval(self, pred, gt):
+        pred_norm = normalize_01(pred)
+        gt_norm = normalize_01(gt)
+
+        # mse = masked_MSE(pred, gt)
+
+        state = self.evaluator.run([[pred_norm, gt_norm]])
+        ssim = state.metrics["ssim"]
+        return torch.tensor((1 - ssim))
+
+
+def plot(pred, gt, savepath):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+    axes[0].imshow(gt, cmap="viridis")
+    axes[0].set_title("Ground Truth")
+    cbar_gt = plt.colorbar(axes[0].imshow(gt, cmap="viridis"), ax=axes[0])
+    cbar_gt.set_label("Radiance")
+
+    axes[1].imshow(pred, cmap="viridis")
+    axes[1].set_title("Prediction")
+    cbar_pred = plt.colorbar(axes[1].imshow(pred, cmap="viridis"), ax=axes[1])
+    cbar_pred.set_label("Radiance")
+
+    plt.tight_layout()
+    plt.savefig(savepath)
+    plt.close()
+
+
+def generate_noise(x, sigma=20):
+    shape = x.shape[-2:]
+    scale = x.mean().numpy() * 0.08
+
+    noise = np.random.randn(*shape)
+    noise = scipy.ndimage.gaussian_filter(noise, sigma=sigma)
+    noise = (noise - np.min(noise)) / (np.max(noise) - np.min(noise)) * scale
+    return torch.from_numpy(noise).float()

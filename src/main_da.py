@@ -10,12 +10,12 @@ from torchvision.transforms import functional as tf
 # Customized packages.
 from utils import *
 from unet import UNet
-from dataset import phaseDataset, Subset
+from dataset import sourceDataset, targetDataset
 
 
 def get_args():
     parser = argparse.ArgumentParser(
-        description="Evaluate test set with pretrained Deeplabv3 model."
+        description="UNet-based model for intensity-phase transformation"
     )
     parser.add_argument(
         "--device",
@@ -32,24 +32,27 @@ def get_args():
 
 
 args = get_args()
-exp_name = "mdd"
+exp_name = "ssim"
 dt_string = datetime.now().strftime("%m%d_%H%M_")
 exp_name = dt_string + exp_name
 config = {
     "Optimizer": "Adam",
     "batch_size": 4,
     "lr": 2e-5,
-    "n_epochs": 2000,
-    "patience": 100,
+    "n_epochs": 1500,
+    "patience": 50,
     "exp_name": dt_string + exp_name,
 }
-log_file = f"../log/{exp_name}.log"
-if os.path.exists(log_file):
-    os.remove(log_file)
+output_dir = f"../output/{exp_name}"
+log_file = f"../output/{exp_name}/training_record.log"
+ckpt_file = f"../output/{exp_name}/model.ckpt"
+
+if not os.path.exists(output_dir):
+    os.mkdir(output_dir)
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-myseed = 1314520
+myseed = 7777
 np.random.seed(myseed)
 torch.manual_seed(myseed)
 if torch.cuda.is_available():
@@ -57,9 +60,8 @@ if torch.cuda.is_available():
 device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
 print(device)
 
-source_train_set = phaseDataset(mode="train")
-target_train_set = phaseDataset(mode="experiment")
-# target_train_set = Subset(target_train_set, list(range(8)))
+source_train_set = sourceDataset(mode="train")
+target_train_set = targetDataset(mode="train")
 print(len(source_train_set))
 print(len(target_train_set))
 source_train_loader = DataLoader(
@@ -70,12 +72,13 @@ target_train_loader = DataLoader(
 )
 
 
-model = UNet(in_dim=1, out_dim=1, domain_adapt=True)
+model = UNet(in_dim=1, out_dim=1)
 model = model.to(device)
-
-# ckpt_path = "../input/dlcvhw1/1008_04_52_deeplabv3.ckpt"
 model.load_state_dict(torch.load(args.model))
+
 MSE_loss = nn.MSELoss()
+targetLOSS = phaseSSIM()
+# MAE_loss = nn.L1Loss()
 optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], weight_decay=1e-5)
 
 best_loss = 1e9
@@ -90,16 +93,18 @@ for epoch in tqdm(range(n_epochs), position=0, leave=True):
     data_source_iter = iter(source_train_loader)
     data_target_iter = iter(target_train_loader)
     loss_dict = {
-        "mseloss_src": [],
-        "mseloss_tgt": [],
-        "mddloss_enc": [],
-        "mddloss_dec": [],
+        key: []
+        for key in [
+            "mseloss_src",
+            "mseloss_tgt",
+            "ssim_tgt",
+            "mddloss_enc",
+            "mddloss_dec",
+        ]
     }
-
     for i in range(len_dataloader):
         # p = float(i + epoch * len_dataloader) / n_epochs / len_dataloader
         # optimizer = optimizer_scheduler(optimizer=optimizer, p=p, init=1e-4)
-        optimizer.zero_grad()
 
         source_data = next(data_source_iter)
         I_src, Phi_gt_src = source_data
@@ -116,70 +121,48 @@ for epoch in tqdm(range(n_epochs), position=0, leave=True):
 
         mseloss_src = MSE_loss(Phi_pred_src, Phi_gt_src)
         mseloss_tgt = MSE_loss(Phi_pred_tgt, Phi_gt_tgt)
+        ssim_tgt = targetLOSS.eval(Phi_pred_tgt, Phi_gt_tgt)
 
         mddloss_enc = mdd_loss(f1_src, f1_tgt) * lambda_mdd
         mddloss_dec = mdd_loss(f2_src, f2_tgt) * lambda_mdd
 
-        loss = mseloss_src + mseloss_tgt + mddloss_enc + mddloss_dec
+        loss = mseloss_src + mseloss_tgt + ssim_tgt + mddloss_enc + mddloss_dec
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        # Store losses
-        loss_dict["mseloss_src"].append(mseloss_src.detach().cpu().numpy())
-        loss_dict["mseloss_tgt"].append(mseloss_tgt.detach().cpu().numpy())
-        loss_dict["mddloss_enc"].append(mddloss_enc.detach().cpu().numpy())
-        loss_dict["mddloss_dec"].append(mddloss_dec.detach().cpu().numpy())
 
+        for key, value in zip(
+            loss_dict.keys(),
+            [mseloss_src, mseloss_tgt, ssim_tgt, mddloss_enc, mddloss_dec],
+        ):
+            loss_dict[key].append(value.detach().cpu().numpy())
+
+    # ---------- log ----------
     avg_losses = {key: sum(values) / len(values) for key, values in loss_dict.items()}
+    total_loss = sum(avg_losses.values())
     note = ""
-    loss = (
-        avg_losses["mseloss_src"]
-        + avg_losses["mseloss_tgt"]
-        + avg_losses["mddloss_enc"]
-        + avg_losses["mddloss_dec"]
-    )
-    if loss < best_loss:
+    if total_loss < best_loss:
         best_loss = loss
         note = "-->best"
-        torch.save(model.state_dict(), f"../ckpt/{exp_name}.ckpt")
+        torch.save(model.state_dict(), ckpt_file)
 
+    loss_str = ", ".join([f"{key} = {value:.6f}" for key, value in avg_losses.items()])
     with open(log_file, "a") as f:
-        f.write(
-            f"[ Train | {epoch + 1:03d}/{n_epochs:03d} ], "
-            f"MSEloss_src = {avg_losses['mseloss_src']:.6f}, "
-            f"MSEloss_tgt = {avg_losses['mseloss_tgt']:.6f}, "
-            f"MDDloss_enc = {avg_losses['mddloss_enc']:.6f}, "
-            f"MDDloss_dec = {avg_losses['mddloss_dec']:.6f} {note}\n"
-        )
+        f.write(f"[ Train | {epoch + 1:03d}/{n_epochs:03d} ], {loss_str} {note}\n")
 
-    # ---------- Validation ----------
-    # model.eval()
-    # valid_loss = []
-    # for i, batch in enumerate(target_train_loader):
-    #     I_delta_z, phase_gt = batch
-    #     I_delta_z = I_delta_z.to(device)
-    #     phase_gt = phase_gt.to(device)
+    # ---------- inferernce ----------
+    if epoch % 100 == 0:
+        model.eval()
+        batch_size = 2
+        x, y = target_train_set.get_random_batch(batch_size)
+        x = x.to(device)
+        y = y.to(device)
+        with torch.no_grad():
+            phase_pred, _, _ = model(x)
 
-    #     phase_pred = model(I_delta_z)
-    #     loss = MSE_loss(phase_pred, phase_gt)
+        phase_pred = phase_pred.squeeze().detach().cpu().numpy()
+        y = y.squeeze().detach().cpu().numpy()
 
-    #     valid_loss.append(loss.detach().cpu().numpy())
-
-    # valid_loss = sum(valid_loss) / len(valid_loss)
-    # note = ""
-    # valid_loss = 1e9
-    # if valid_loss < best_loss:
-    #     best_loss = valid_loss
-    #     note = "-->best"
-    #     stale = 0
-    #     torch.save(model.state_dict(), f"../ckpt/{exp_name}.ckpt")
-    # else:
-    #     stale += 1
-
-    # with open(log_file, "a") as f:
-    #     f.write(
-    #         f"[ Valid | {epoch + 1:03d}/{n_epochs:03d} ] loss = {valid_loss:.6f} {note}\n"
-    #     )
-
-    # if stale > config["patience"]:
-    #     print(f"No improvment {stale} consecutive epochs, early stop in {epoch} epochs")
-    #     break
+        for i in range(batch_size):
+            save_path = os.path.join(output_dir, f"{epoch}_{i}.png")
+            plot(phase_pred[i], y[i], save_path)

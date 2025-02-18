@@ -27,7 +27,7 @@ transform = tv.transforms.Compose(
 )
 
 
-class phaseDataset(Dataset):
+class sourceDataset(Dataset):
     def __init__(self, mode):
         path = "../data"
         self.images_list = []
@@ -55,86 +55,124 @@ class phaseDataset(Dataset):
                         if file_id % 2 == 1:
                             self.images_list.append(os.path.join(root, file))
 
-        elif mode == "train_exp":
-            path = os.path.join(path, "1220")
+    def __len__(self):
+        return len(self.images_list)
+
+    def __getitem__(self, idx):
+        # x : input I(z=dz), y : groundtruth phi(z=0)
+        img = Image.open(self.images_list[idx])
+        img = np.maximum(img, 0)
+        img = (img - np.min(img)) / (np.max(img) - np.min(img))
+        max_rad = 1 * torch.pi
+        y = torch.from_numpy(img).unsqueeze(dim=0)
+        if self.mode == "train":
+            y = transform(y)
+        y = y * max_rad
+
+        u0 = torch.exp(1j * y)
+        z = random.gauss(mu=10e-6, sigma=0)
+        _lambda = random.gauss(mu=4e-7, sigma=0)
+        u_delta_z = fresnel_prop_torch(u0, z, _lambda)
+        I_delta_z = torch.abs(u_delta_z) ** 2
+
+        x = I_delta_z.to(torch.float32)
+        x = x / torch.mean(I_delta_z)
+        noise = generate_noise(x)
+        x = x + noise
+
+        return x, y
+
+    def get_random_batch(self, batch_size):
+        indices = random.sample(range(len(self)), batch_size)
+        batch = [self[i] for i in indices]
+        x_batch, y_batch = zip(*batch)
+
+        x_batch = torch.stack(x_batch)
+        y_batch = torch.stack(y_batch)
+
+        return x_batch, y_batch
+
+
+class targetDataset(Dataset):
+    def __init__(self, mode):
+        path = "../data"
+        self.images_list = []
+        self.mode = mode
+        if mode == "train":
+            path = os.path.join(path, "0130/train")
             self.images_list = sorted(
                 [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".jpg")]
             )
             self.gt_list = sorted(
                 [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".mat")]
             )
-            # self.images_list = self.images_list[:8]
-        elif mode == "test_exp":
-            path = os.path.join(path, "0106")
+        elif mode == "test":
+            path = os.path.join(path, "0130/test")
             self.images_list = sorted(
                 [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".jpg")]
             )
-            print(self.images_list)
 
     def __len__(self):
         return len(self.images_list)
 
     def __getitem__(self, idx):
-        # x : input I(z=dz), y : groundtruth phi(z=0)
-        if self.mode == "test_exp":
+        if self.mode == "train":
             img = Image.open(self.images_list[idx])
-            img = np.invert(img)
-            x = torch.from_numpy(img).to(torch.float32)
-            x = x.unsqueeze(dim=0)
-            x = tv.transforms.Resize(
-                size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
-            )(x)
-            x = x / torch.mean(x)
-            y = torch.zeros(1)
+            x = TF.to_tensor(img).to(torch.float32)
 
-        elif self.mode == "train_exp":
-            img = Image.open(self.images_list[idx])
-            img = np.invert(img)
-            x = torch.from_numpy(img).to(torch.float32)
-            x = x.unsqueeze(dim=0)
+            # img = np.invert(img)
+            # x = x.unsqueeze(dim=0)
+
             x = tv.transforms.Resize(
                 size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
             )(x)
             x = x / torch.mean(x)
 
             y = loadmat(self.gt_list[idx])["phi_recon"]
+            # y = np.maximum(y, 0)  # clipp negative values
             y = torch.from_numpy(y).to(torch.float32)
             y = y.unsqueeze(dim=0)
             y = tv.transforms.Resize(
                 size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
             )(y)
 
-        else:
-            print(self.images_list[idx])
+            if np.random.rand() > 0.5:
+                x = TF.hflip(x)
+                y = TF.hflip(y)
+
+            if np.random.rand() > 0.5:
+                x = TF.vflip(x)
+                y = TF.vflip(y)
+
+            return x, y
+
+        elif self.mode == "test":
             img = Image.open(self.images_list[idx])
-            img = np.maximum(img, 0)
-            img = (img - np.min(img)) / (np.max(img) - np.min(img))
-            max_rad = 0.6 * torch.pi
-            y = torch.from_numpy(img).unsqueeze(dim=0)
-            if self.mode == "train_exp":
-                y = transform(y)
-            y = y * max_rad
+            x = TF.to_tensor(img).to(torch.float32)
+            # img = np.invert(img)
+            # x = x.unsqueeze(dim=0)
+            x = tv.transforms.Resize(
+                size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
+            )(x)
+            x = x / torch.mean(x)
 
-            u0 = torch.exp(1j * y)
-            z = random.gauss(mu=1e-5, sigma=0)
-            _lambda = random.gauss(mu=4e-7, sigma=0)
-            u_delta_z = fresnel_prop_torch(u0, z, _lambda)
-            I_delta_z = torch.abs(u_delta_z) ** 2
+            return x
 
-            x = I_delta_z.to(torch.float32)
-            # normalized by intensity
-            x = x / torch.mean(I_delta_z)
-            # x = func.normalize(x)
-        # save_image(y, "y.png")
-        # print(x.dtype, y.dtype)
+    def get_random_batch(self, batch_size):
+        indices = random.sample(range(len(self)), batch_size)
+        batch = [self[i] for i in indices]
+        x_batch, y_batch = zip(*batch)
 
-        return x, y
+        x_batch = torch.stack(x_batch)
+        y_batch = torch.stack(y_batch)
+
+        return x_batch, y_batch
 
 
-# dataset = phaseDataset(mode="experiment")
+# dataset = sourceDataset(mode="train")
 # print(len(dataset))
 # x, y = dataset.__getitem__(0)
-
-# plt.savefig("temp.png")
-# # print(x.shape)
+# x, y = dataset.get_random_batch(4)
+# # plt.savefig("temp.png")
+# print(x.shape)
 # print(y.shape)

@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from unet import UNet
-from dataset import phaseDataset
+from dataset import sourceDataset, targetDataset
 
 
 def get_args():
@@ -20,7 +20,14 @@ def get_args():
         "-o",
         type=str,
         default=None,
-        help="Output directory path for predition masks",
+        help="Output directory path for predition",
+    )
+    parser.add_argument(
+        "--device",
+        "-d",
+        type=int,
+        default=0,
+        help="device ID",
     )
     parser.add_argument(
         "--model", "-m", type=str, default=None, help="Model path to load"
@@ -32,7 +39,8 @@ if __name__ == "__main__":
     args = get_args()
     torch.cuda.empty_cache()
 
-    device = "cuda:1" if torch.cuda.is_available() else "cpu"
+    device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
+    print(device)
     if not os.path.exists(args.output):
         os.makedirs(args.output)
 
@@ -41,45 +49,31 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(args.model))
     model.eval()
 
-    mode = "test_exp"
-    test_set = phaseDataset(mode=mode)
+    test_set = targetDataset(mode="train")
     print(len(test_set))
     test_loader = DataLoader(test_set, shuffle=False, batch_size=1)
 
     MSEs = []
     for i, batch in enumerate(test_loader):
-        if i == 10:
-            break
         x, y = batch
 
         x = x.to(device)
-        phase_pred = model(x)
-
+        phase_pred, _, _ = model(x)
         phase_pred = phase_pred.squeeze().detach().cpu().numpy()
         y = y.squeeze().numpy()
 
         save_path = os.path.join(args.output, f"{i}.png")
-        if mode.endswith("exp"):
-            plt.figure(figsize=(8, 6))
-            im = plt.imshow(phase_pred, cmap="viridis")
-            plt.title("Prediction")
-            cbar = plt.colorbar(im)
-            cbar.set_label("Radiance")
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
-        else:
-            fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        axes[0].imshow(y, cmap="viridis")
+        axes[0].set_title("Ground Truth")
+        cbar_gt = plt.colorbar(axes[0].imshow(y, cmap="viridis"), ax=axes[0])
+        cbar_gt.set_label("Radiance")
 
-            axes[0].imshow(y, cmap="viridis")
-            axes[0].set_title("Ground Truth")
-            cbar_gt = plt.colorbar(axes[0].imshow(y, cmap="viridis"), ax=axes[0])
-            cbar_gt.set_label("Radiance")
-
-            axes[1].imshow(phase_pred, cmap="viridis")
-            axes[1].set_title("Prediction")
-            cbar_pred = plt.colorbar(
-                axes[1].imshow(phase_pred, cmap="viridis"), ax=axes[1]
-            )
-            cbar_pred.set_label("Radiance")
+        axes[1].imshow(phase_pred, cmap="viridis")
+        axes[1].set_title("Prediction")
+        cbar_pred = plt.colorbar(axes[1].imshow(phase_pred, cmap="viridis"), ax=axes[1])
+        cbar_pred.set_label("Radiance")
 
         plt.tight_layout()
         plt.savefig(save_path)

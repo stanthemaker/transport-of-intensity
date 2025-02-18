@@ -78,10 +78,9 @@ class OutConv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, in_dim, out_dim, bilinear=True, domain_adapt=False):
+    def __init__(self, in_dim, out_dim, bilinear=True):
         super(UNet, self).__init__()
         self.bilinear = bilinear
-        self.domain_adapt = domain_adapt
 
         self.inc = DoubleConv(in_dim, 64)
         self.down1 = Down(64, 128)
@@ -96,7 +95,8 @@ class UNet(nn.Module):
         self.outc = OutConv(64, out_dim)
 
     def forward(self, x):
-        # output feature for MDD loss
+        # feat1 and feat2 are features for MDD loss
+        # relu at last layer to ensure >= 0 output
         x1 = self.inc(x)
         feat1 = x1
         x2 = self.down1(x1)
@@ -109,10 +109,9 @@ class UNet(nn.Module):
         x = self.up4(x, x1)
         feat2 = x
         x = self.outc(x)
-        if self.domain_adapt:
-            return x, feat1, feat2
-        else:
-            return x
+        # x = F.relu(x)
+
+        return x, feat1, feat2
 
     def use_checkpointing(self):
         self.inc = torch.utils.checkpoint(self.inc)
