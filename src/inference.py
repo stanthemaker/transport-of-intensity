@@ -1,4 +1,5 @@
 import os, argparse
+from scipy.io import savemat
 import torch
 from torchvision.transforms import functional as TF
 from torchvision.utils import save_image
@@ -49,8 +50,9 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(args.model))
     model.eval()
 
-    test_set = targetDataset(mode="train")
+    test_set = targetDataset(mode="test", path="../data/0226/train")
     print(len(test_set))
+    namelist = test_set.images_list
     test_loader = DataLoader(test_set, shuffle=False, batch_size=1)
 
     MSEs = []
@@ -62,53 +64,35 @@ if __name__ == "__main__":
         phase_pred = phase_pred.squeeze().detach().cpu().numpy()
         y = y.squeeze().numpy()
 
-        save_path = os.path.join(args.output, f"{i}.png")
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        name = namelist[i]
+        name = os.path.basename(name).split(".")[0]
+        save_path = os.path.join(args.output, f"{name}_ref.mat")
+        savemat(save_path, {"phi_recon": phase_pred})
+        save_path = os.path.join(args.output, f"{name}.png")
+        fig, axes = plt.subplots(1, 4, figsize=(20, 5))
 
-        axes[0].imshow(y, cmap="viridis")
-        axes[0].set_title("Ground Truth")
-        cbar_gt = plt.colorbar(axes[0].imshow(y, cmap="viridis"), ax=axes[0])
+        input = x.squeeze().detach().cpu().numpy()
+        axes[0].imshow(input, cmap="gray")
+        axes[0].set_title("input")
+        cbar_gt = plt.colorbar(axes[0].imshow(input, cmap="gray"), ax=axes[0])
+        cbar_gt.set_label("grayscale")
+
+        axes[1].imshow(y, cmap="viridis")
+        axes[1].set_title("Ground Truth")
+        cbar_gt = plt.colorbar(axes[1].imshow(y, cmap="viridis"), ax=axes[1])
         cbar_gt.set_label("Radiance")
 
-        axes[1].imshow(phase_pred, cmap="viridis")
-        axes[1].set_title("Prediction")
-        cbar_pred = plt.colorbar(axes[1].imshow(phase_pred, cmap="viridis"), ax=axes[1])
+        y = np.maximum(y, 0)
+        axes[2].imshow(y, cmap="viridis")
+        axes[2].set_title("Clipped Ground Truth")
+        cbar_gt = plt.colorbar(axes[2].imshow(y, cmap="viridis"), ax=axes[2])
+        cbar_gt.set_label("Radiance")
+
+        axes[3].imshow(phase_pred, cmap="viridis")
+        axes[3].set_title("Prediction")
+        cbar_pred = plt.colorbar(axes[3].imshow(phase_pred, cmap="viridis"), ax=axes[3])
         cbar_pred.set_label("Radiance")
 
         plt.tight_layout()
         plt.savefig(save_path)
         plt.close()
-
-    #     if mode != "experiment":
-    #         save_path_gt = os.path.join(args.output, f"{i}_gt.png")
-    #         save_image(y, save_path_gt)
-    #         y = y.numpy()
-    #         phase_pred = phase_pred.detach().cpu().numpy()
-    #         mse = np.mean(np.square(phase_pred - y))
-    #         print("MSE:", mse)
-    #         MSEs.append(mse)
-
-    # if mode != "experiment":
-    #     print("avg MSE:", sum(MSEs) / len(MSEs))
-
-    # for i, batch in enumerate(test_loader):
-    #     if i == 20:
-    #         break
-    #     I_delta_z, phase_gt = batch
-    #     I_delta_z = I_delta_z.to(device)
-    #     phase_pred = model(I_delta_z)
-
-    #     save_path_input = os.path.join(args.output, f"{i}_input.png")
-    #     save_path_pred = os.path.join(args.output, f"{i}_pred.png")
-    #     save_path_gt = os.path.join(args.output, f"{i}_gt.png")
-    #     save_image(phase_pred, save_path_pred)
-    #     save_image(phase_gt, save_path_gt)
-    #     save_image(I_delta_z, save_path_input)
-
-    #     phase_gt = phase_gt.numpy()
-    #     phase_pred = phase_pred.detach().cpu().numpy()
-    #     mse = np.mean(np.square(phase_pred - phase_gt))
-    #     print("MSE:", mse)
-    #     MSEs.append(mse)
-
-    # print("avg MSE:", sum(MSEs) / len(MSEs))

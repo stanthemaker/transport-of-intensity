@@ -70,7 +70,6 @@ model = UNet(in_dim=1, out_dim=1)
 model = model.to(device)
 
 loss_func = nn.MSELoss()
-# loss_func = nn.L1Loss()
 optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], weight_decay=1e-5)
 
 stale = 0

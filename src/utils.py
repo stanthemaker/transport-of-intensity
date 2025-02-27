@@ -6,9 +6,14 @@ from torch import linalg as la
 import matplotlib.pyplot as plt
 from torch.nn import functional as F
 from scipy.fft import fft2, ifft2, fftshift, ifftshift
+from scipy.io import loadmat
 
 from ignite.engine.engine import Engine
 from ignite.metrics import SSIM
+
+
+def normalize_01(tensor):
+    return (tensor - torch.min(tensor)) / (torch.max(tensor) - torch.min(tensor))
 
 
 def fresnel_prop_np(u0, z=1e-4, L=5.12e-4, wavelength=6.32e-7):
@@ -104,34 +109,28 @@ def mdd_loss(feat_src, feat_tgt):
 
 
 def masked_MSE(pred, gt):
-    mask = (gt >= 0).float()
-    mse_loss = ((pred - gt) ** 2) * mask
-    return mse_loss.sum() / mask.sum()
+    mask = (gt > 0).float()
+
+    pred = normalize_01(pred)
+    gt = normalize_01(gt)
+
+    pred_valid = pred * mask
+    gt_valid = gt * mask
+
+    mse_loss = ((pred_valid - gt_valid) ** 2).sum() / mask.sum()
+    return mse_loss
 
 
-def eval_step(engine, batch):
-    return batch
+def masked_MAE(pred, gt):
+    mask = (gt > 0).float()
+    pred = normalize_01(pred)
+    gt = normalize_01(gt)
 
+    pred_valid = pred * mask
+    gt_valid = gt * mask
 
-def normalize_01(tensor):
-    return (tensor - tensor.min()) / (tensor.max() - tensor.min())
-
-
-class phaseSSIM:
-    def __init__(self):
-        self.evaluator = Engine(eval_step)
-        metric = SSIM(data_range=1.0)
-        metric.attach(self.evaluator, "ssim")
-
-    def eval(self, pred, gt):
-        pred_norm = normalize_01(pred)
-        gt_norm = normalize_01(gt)
-
-        # mse = masked_MSE(pred, gt)
-
-        state = self.evaluator.run([[pred_norm, gt_norm]])
-        ssim = state.metrics["ssim"]
-        return torch.tensor((1 - ssim))
+    mae_loss = (torch.abs(pred_valid - gt_valid)).sum() / mask.sum()
+    return mae_loss
 
 
 def plot(pred, gt, savepath):
@@ -152,11 +151,51 @@ def plot(pred, gt, savepath):
     plt.close()
 
 
+def eval_step(engine, batch):
+    return batch
+
+
+class phaseSSIM:
+    def __init__(self):
+        self.evaluator = Engine(eval_step)
+        metric = SSIM(data_range=1.0)
+        metric.attach(self.evaluator, "ssim")
+
+    def eval(self, pred, ref):
+        pred = normalize_01(pred)
+        ref = normalize_01(ref)
+
+        state = self.evaluator.run([[pred, ref]])
+        ssim = state.metrics["ssim"]
+        return torch.tensor(1 - ssim)
+
+
 def generate_noise(x, sigma=20):
     shape = x.shape[-2:]
-    scale = x.mean().numpy() * 0.08
+    scale = x.mean().numpy() * 0.02
 
     noise = np.random.randn(*shape)
     noise = scipy.ndimage.gaussian_filter(noise, sigma=sigma)
     noise = (noise - np.min(noise)) / (np.max(noise) - np.min(noise)) * scale
     return torch.from_numpy(noise).float()
+
+
+# SSIM_evaluator = phaseSSIM()
+# pred = loadmat("../output/0221_test/da/2.mat")["phi_recon"]
+# ref = loadmat("../output/0221_test/no_da/2.mat")["phi_recon"]
+
+# # bf = Image.open(("../output/0220_test/Beas_B_03.jpg"))
+# # bf = bf.resize((600, 600))
+# # print(bf.size)
+# # bf = np.array(bf)
+
+# pred = torch.tensor(pred).float()
+# pred = torch.unsqueeze(pred, 0)
+# pred = torch.unsqueeze(pred, 0)
+
+# ref = torch.tensor(ref).float()
+# ref = torch.unsqueeze(ref, 0)
+# ref = torch.unsqueeze(ref, 0)
+
+# ssim = SSIM_evaluator.eval(pred, ref)
+# print(ssim)

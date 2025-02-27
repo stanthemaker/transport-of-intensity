@@ -16,6 +16,7 @@ from utils import *
 
 transform = tv.transforms.Compose(
     [
+        tv.transforms.RandomResizedCrop(size=(250, 250)),
         tv.transforms.RandomHorizontalFlip(p=0.5),
         tv.transforms.RandomVerticalFlip(p=0.5),
         tv.transforms.RandomRotation(
@@ -94,69 +95,70 @@ class sourceDataset(Dataset):
 
 
 class targetDataset(Dataset):
-    def __init__(self, mode):
-        path = "../data"
+    def __init__(self, mode, path):
         self.images_list = []
         self.mode = mode
-        if mode == "train":
-            path = os.path.join(path, "0130/train")
-            self.images_list = sorted(
-                [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".jpg")]
-            )
-            self.gt_list = sorted(
-                [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".mat")]
-            )
-        elif mode == "test":
-            path = os.path.join(path, "0130/test")
-            self.images_list = sorted(
-                [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".jpg")]
-            )
+        self.images_list = sorted(
+            [os.path.join(path, x) for x in os.listdir(path) if x.endswith(".jpg")]
+        )
+        self.gt_list = sorted(
+            [os.path.join(path, x) for x in os.listdir(path) if x.endswith("_tie.mat")]
+        )
+        self.ref_list = sorted(
+            [os.path.join(path, x) for x in os.listdir(path) if x.endswith("_ref.mat")]
+        )
 
     def __len__(self):
         return len(self.images_list)
 
     def __getitem__(self, idx):
+        img = Image.open(self.images_list[idx]).convert("L")
+        # img = np.invert(img)
+        x = TF.to_tensor(img).to(torch.float32)
+        # x = tv.transforms.Resize(
+        #     size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
+        # )(x)
+        x = x / torch.mean(x)
+
+        y = loadmat(self.gt_list[idx])["phi_recon"]
+        # y = np.maximum(y, 0)  # clipp negative values
+        y = torch.from_numpy(y).to(torch.float32)
+        y = y.unsqueeze(dim=0)
+        y = tv.transforms.Resize(
+            size=[250, 250], interpolation=tv.transforms.InterpolationMode.BICUBIC
+        )(y)
+
+        # ref = loadmat(self.ref_list[idx])["phi_recon"]
+        # ref = torch.from_numpy(ref).to(torch.float32)
+        # ref = ref.unsqueeze(dim=0)
+        # ref = tv.transforms.Resize(
+        #     size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
+        # )(ref)
+
         if self.mode == "train":
-            img = Image.open(self.images_list[idx])
-            x = TF.to_tensor(img).to(torch.float32)
-
-            # img = np.invert(img)
-            # x = x.unsqueeze(dim=0)
-
-            x = tv.transforms.Resize(
-                size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
-            )(x)
-            x = x / torch.mean(x)
-
-            y = loadmat(self.gt_list[idx])["phi_recon"]
-            # y = np.maximum(y, 0)  # clipp negative values
-            y = torch.from_numpy(y).to(torch.float32)
-            y = y.unsqueeze(dim=0)
-            y = tv.transforms.Resize(
-                size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
-            )(y)
 
             if np.random.rand() > 0.5:
                 x = TF.hflip(x)
                 y = TF.hflip(y)
+                # ref = TF.hflip(ref)
 
             if np.random.rand() > 0.5:
                 x = TF.vflip(x)
                 y = TF.vflip(y)
+                # ref = TF.vflip(ref)
 
-            return x, y
+            # elif self.mode == "test":
+            #     img = Image.open(self.images_list[idx])
+            #     x = TF.to_tensor(img).to(torch.float32)
+            #     # img = np.invert(img)
+            #     # x = x.unsqueeze(dim=0)
+            #     x = tv.transforms.Resize(
+            #         size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
+            #     )(x)
+            #     x = x / torch.mean(x)
 
-        elif self.mode == "test":
-            img = Image.open(self.images_list[idx])
-            x = TF.to_tensor(img).to(torch.float32)
-            # img = np.invert(img)
-            # x = x.unsqueeze(dim=0)
-            x = tv.transforms.Resize(
-                size=[600, 600], interpolation=tv.transforms.InterpolationMode.BICUBIC
-            )(x)
-            x = x / torch.mean(x)
-
-            return x
+        # return x, y, ref
+        return x, y
 
     def get_random_batch(self, batch_size):
         indices = random.sample(range(len(self)), batch_size)
@@ -169,9 +171,13 @@ class targetDataset(Dataset):
         return x_batch, y_batch
 
 
+# test_set = targetDataset(mode="test", path="../data/0226/test")
+
 # dataset = sourceDataset(mode="train")
 # print(len(dataset))
-# x, y = dataset.__getitem__(0)
+# x, y = test_set.__getitem__(1)
+# print(x.shape)
+# print(y.shape)
 # x, y = dataset.get_random_batch(4)
 # # plt.savefig("temp.png")
 # print(x.shape)
