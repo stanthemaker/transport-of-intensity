@@ -1,4 +1,7 @@
-import os, argparse
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+import argparse
 from scipy.io import savemat
 import torch
 from torchvision.transforms import functional as TF

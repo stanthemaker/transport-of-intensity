@@ -1,4 +1,4 @@
-""" Full assembly of the parts to form the complete network """
+"""Full assembly of the parts to form the complete network"""
 
 import torch
 import torch.nn as nn
@@ -17,10 +17,8 @@ class DoubleConv(nn.Module):
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(mid_channels),
             nn.LeakyReLU(inplace=True),
-            # nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            # nn.ReLU(inplace=True),
             nn.LeakyReLU(inplace=True),
         )
 
@@ -80,38 +78,40 @@ class OutConv(nn.Module):
 class UNet(nn.Module):
     def __init__(self, in_dim, out_dim, bilinear=True):
         super(UNet, self).__init__()
-        self.bilinear = bilinear
-
-        self.inc = DoubleConv(in_dim, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
         factor = 2 if bilinear else 1
-        self.down4 = Down(512, 1024 // factor)
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
-        self.up4 = Up(128, 64, bilinear)
-        self.outc = OutConv(64, out_dim)
+        a = 0.5
+        self.down_path = nn.ModuleList(
+            [
+                DoubleConv(in_dim, int(64 * a)),
+                Down(int(64 * a), int(128 * a)),
+                Down(int(128 * a), int(256 * a)),
+                Down(int(256 * a), int(512 * a)),
+                Down(int(512 * a), int(512 * a)),
+            ]
+        )
+
+        self.up_path = nn.ModuleList(
+            [
+                Up(int(1024 * a), int(512 * a // factor), bilinear),
+                Up(int(512 * a), int(256 * a // factor), bilinear),
+                Up(int(256 * a), int(128 * a // factor), bilinear),
+                Up(int(128 * a), int(64 * a)),
+            ]
+        )
+        self.outc = OutConv(int(64 * a), out_dim)
 
     def forward(self, x):
-        # feat1 and feat2 are features for MDD loss
-        # relu at last layer to ensure >= 0 output
-        x1 = self.inc(x)
-        feat1 = x1
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        feat2 = x
-        x = self.outc(x)
-        # x = F.relu(x)
+        features = []
+        for i, down_block in enumerate(self.down_path):
+            x = down_block(x)
+            features.append(x)
 
-        return x, feat1, feat2
+        features.pop()  # remove the last feature map from the list
+        for i, up_block in enumerate(self.up_path):
+            f = features.pop()
+            # print(x.shape, f.shape)
+            x = up_block(x, f)
+        return self.outc(x)
 
     def use_checkpointing(self):
         self.inc = torch.utils.checkpoint(self.inc)
@@ -126,5 +126,5 @@ class UNet(nn.Module):
         self.outc = torch.utils.checkpoint(self.outc)
 
 
-# model = UNet(1, 1).to("cuda:0")
-# summary(model, (1, 600, 600))
+model = UNet(1, 1)
+summary(model, (1, 250, 250))

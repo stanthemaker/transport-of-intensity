@@ -8,15 +8,15 @@ from torch.nn import functional as F
 from scipy.fft import fft2, ifft2, fftshift, ifftshift
 from scipy.io import loadmat
 
-from ignite.engine.engine import Engine
-from ignite.metrics import SSIM
+# from ignite.engine.engine import Engine
+# from ignite.metrics import SSIM
 
 
 def normalize_01(tensor):
     return (tensor - torch.min(tensor)) / (torch.max(tensor) - torch.min(tensor))
 
 
-def fresnel_prop_np(u0, z=1e-4, L=5.12e-4, wavelength=6.32e-7):
+def fresnel_prop_np(u0, z=1e-4, L=5.12e-4, wavelength=4e-7):
     """
     Fresnel propagation using the Transfer function method in Python.
 
@@ -49,11 +49,12 @@ def fresnel_prop_np(u0, z=1e-4, L=5.12e-4, wavelength=6.32e-7):
     return u1
 
 
-def fresnel_prop_torch(u0, z=10e-6, wavelength=6.32e-7):
+def fresnel_prop_torch(u0, ps=1e-6, z=10e-6, wavelength=4e-7):
     """
     Fresnel propagation using the Transfer function method with PyTorch.
 
     Parameters:
+    ps         - Physical pixel size
     u0         - Complex amplitude of the beam at the source plane (torch tensor, complex64 or complex128)
     L          - Side length of the field of view of image
     wavelength - Wavelength of light
@@ -64,13 +65,10 @@ def fresnel_prop_torch(u0, z=10e-6, wavelength=6.32e-7):
     """
     # Input array size
     M = u0.shape[-1]
-
-    # Sampling interval size
-    L = 5.12e-4
-    dx = L / M
+    L = ps * M
 
     # Frequency coordinates sampling
-    fx = torch.linspace(-1 / (2 * dx), 1 / (2 * dx) - 1 / L, M)
+    fx = torch.linspace(-1 / (2 * ps), 1 / (2 * ps) - 1 / L, M)
     FX, FY = torch.meshgrid(fx, fx, indexing="ij")
     FX = FX.T.to(torch.complex128)
     FY = FY.T.to(torch.complex128)
@@ -155,29 +153,29 @@ def eval_step(engine, batch):
     return batch
 
 
-class phaseSSIM:
-    def __init__(self):
-        self.evaluator = Engine(eval_step)
-        metric = SSIM(data_range=1.0)
-        metric.attach(self.evaluator, "ssim")
+# class phaseSSIM:
+#     def __init__(self):
+#         self.evaluator = Engine(eval_step)
+#         metric = SSIM(data_range=1.0)
+#         metric.attach(self.evaluator, "ssim")
 
-    def eval(self, pred, ref):
-        pred = normalize_01(pred)
-        ref = normalize_01(ref)
+#     def eval(self, pred, ref):
+#         pred = normalize_01(pred)
+#         ref = normalize_01(ref)
 
-        state = self.evaluator.run([[pred, ref]])
-        ssim = state.metrics["ssim"]
-        return torch.tensor(1 - ssim)
+#         state = self.evaluator.run([[pred, ref]])
+#         ssim = state.metrics["ssim"]
+#         return torch.tensor(1 - ssim)
 
 
-def generate_noise(x, sigma=20):
-    shape = x.shape[-2:]
-    scale = x.mean().numpy() * 0.02
+# def generate_noise(x, sigma=20):
+#     shape = x.shape[-2:]
+#     scale = x.mean().numpy() * 0.02
 
-    noise = np.random.randn(*shape)
-    noise = scipy.ndimage.gaussian_filter(noise, sigma=sigma)
-    noise = (noise - np.min(noise)) / (np.max(noise) - np.min(noise)) * scale
-    return torch.from_numpy(noise).float()
+#     noise = np.random.randn(*shape)
+#     noise = scipy.ndimage.gaussian_filter(noise, sigma=sigma)
+#     noise = (noise - np.min(noise)) / (np.max(noise) - np.min(noise)) * scale
+#     return torch.from_numpy(noise).float()
 
 
 # SSIM_evaluator = phaseSSIM()

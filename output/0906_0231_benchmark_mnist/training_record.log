@@ -1,0 +1,131 @@
+{
+    "Optimizer": "Adam",
+    "batch_size": 32,
+    "lr": 0.0002,
+    "weight_decay": 0.0002,
+    "n_epochs": 100,
+    "patience": 15,
+    "dropout_rate": 0.2,
+    "max_rad": "1 \u03c0",
+    "exp_name": "0906_0231_0906_0231_mnist",
+    "note": "benchmark model"
+}
+[ Train | 001/100 ], loss = 0.020086
+[ Valid | 001/100 ] loss = 0.432910 -->best
+[ Train | 002/100 ], loss = 0.008897
+[ Valid | 002/100 ] loss = 0.028824 -->best
+[ Train | 003/100 ], loss = 0.008087
+[ Valid | 003/100 ] loss = 0.008454 -->best
+[ Train | 004/100 ], loss = 0.007485
+[ Valid | 004/100 ] loss = 0.005403 -->best
+[ Train | 005/100 ], loss = 0.007151
+[ Valid | 005/100 ] loss = 0.006148 
+[ Train | 006/100 ], loss = 0.007128
+[ Valid | 006/100 ] loss = 0.006715 
+[ Train | 007/100 ], loss = 0.006914
+[ Valid | 007/100 ] loss = 0.011647 
+[ Train | 008/100 ], loss = 0.006927
+[ Valid | 008/100 ] loss = 0.008175 
+[ Train | 009/100 ], loss = 0.006807
+[ Valid | 009/100 ] loss = 0.025097 
+[ Train | 010/100 ], loss = 0.006634
+[ Valid | 010/100 ] loss = 0.010181 
+[ Train | 011/100 ], loss = 0.006216
+[ Valid | 011/100 ] loss = 0.005446 
+[ Train | 012/100 ], loss = 0.006473
+[ Valid | 012/100 ] loss = 0.015474 
+[ Train | 013/100 ], loss = 0.006274
+[ Valid | 013/100 ] loss = 0.006074 
+[ Train | 014/100 ], loss = 0.006100
+[ Valid | 014/100 ] loss = 0.005806 
+[ Train | 015/100 ], loss = 0.006160
+[ Valid | 015/100 ] loss = 0.006764 
+[ Train | 016/100 ], loss = 0.006114
+[ Valid | 016/100 ] loss = 0.043117 
+[ Train | 017/100 ], loss = 0.006108
+[ Valid | 017/100 ] loss = 0.004751 -->best
+[ Train | 018/100 ], loss = 0.006006
+[ Valid | 018/100 ] loss = 0.011600 
+[ Train | 019/100 ], loss = 0.006758
+[ Valid | 019/100 ] loss = 0.007546 
+[ Train | 020/100 ], loss = 0.006786
+[ Valid | 020/100 ] loss = 0.006774 
+[ Train | 021/100 ], loss = 0.006241
+[ Valid | 021/100 ] loss = 0.006724 
+[ Train | 022/100 ], loss = 0.006204
+[ Valid | 022/100 ] loss = 0.014245 
+[ Train | 023/100 ], loss = 0.006067
+[ Valid | 023/100 ] loss = 0.007475 
+[ Train | 024/100 ], loss = 0.006142
+[ Valid | 024/100 ] loss = 0.007660 
+[ Train | 025/100 ], loss = 0.006021
+[ Valid | 025/100 ] loss = 0.004915 
+[ Train | 026/100 ], loss = 0.005900
+[ Valid | 026/100 ] loss = 0.005984 
+[ Train | 027/100 ], loss = 0.005840
+[ Valid | 027/100 ] loss = 0.006562 
+[ Train | 028/100 ], loss = 0.005970
+[ Valid | 028/100 ] loss = 0.008198 
+[ Train | 029/100 ], loss = 0.005920
+[ Valid | 029/100 ] loss = 0.007788 
+[ Train | 030/100 ], loss = 0.005858
+[ Valid | 030/100 ] loss = 0.035136 
+[ Train | 031/100 ], loss = 0.005802
+[ Valid | 031/100 ] loss = 0.011659 
+[ Train | 032/100 ], loss = 0.005779
+[ Valid | 032/100 ] loss = 0.007187 
+[ Train | 033/100 ], loss = 0.005814
+[ Valid | 033/100 ] loss = 0.007234 
+
+class DoubleConv(nn.Module):
+    """(convolution => [BN] => ReLU) * 2"""
+
+    def __init__(self, in_channels, out_channels, mid_channels=None):
+        super().__init__()
+        if not mid_channels:
+            mid_channels = out_channels
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(mid_channels),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.LeakyReLU(inplace=True),
+        )
+
+
+class UNet(nn.Module):
+    def __init__(self, in_dim, out_dim, bilinear=True):
+        super(UNet, self).__init__()
+        self.bilinear = bilinear
+
+        self.inc = DoubleConv(in_dim, 64)
+        self.down1 = Down(64, 128)
+        self.down2 = Down(128, 256)
+        self.down3 = Down(256, 512)
+        factor = 2 if bilinear else 1
+        self.down4 = Down(512, 1024 // factor)
+        self.up1 = Up(1024, 512 // factor, bilinear)
+        self.up2 = Up(512, 256 // factor, bilinear)
+        self.up3 = Up(256, 128 // factor, bilinear)
+        self.up4 = Up(128, 64, bilinear)
+        self.outc = OutConv(64, out_dim)
+
+    def forward(self, x):
+        # feat1 and feat2 are features for MDD loss
+        # relu at last layer to ensure >= 0 output
+        x1 = self.inc(x)
+        feat1 = x1
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        feat2 = x
+        x = self.outc(x)
+        # x = F.relu(x)
+
+        return x, feat1, feat2

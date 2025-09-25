@@ -1,0 +1,153 @@
+{
+    "Optimizer": "Adam",
+    "batch_size": 12,
+    "lr": 2e-05,
+    "weight_decay": 0.0002,
+    "n_epochs": 100,
+    "patience": 15,
+    "dropout_rate": 0.2,
+    "max_rad": "1 \u03c0",
+    "exp_name": "0909_0530_0909_0530_benchmark_sync"
+}
+self.down_path = nn.ModuleList(
+            [
+                DoubleConv(in_dim, 32),
+                Down(32, 64),
+                Down(64, 128),
+                Down(128, 256),
+                Down(256, 512),
+                Down(512, 512),
+            ]
+        )
+
+        self.up_path = nn.ModuleList(
+            [
+                Up(1024, 512 // factor, bilinear),
+                Up(512, 256 // factor, bilinear),
+                Up(256, 128 // factor, bilinear),
+                Up(128, 64 // factor, bilinear),
+                Up(64, 32),
+            ]
+        )
+        self.outc = OutConv(32, out_dim)[ Train | 001/100 ], loss = 0.045354
+[ Valid | 001/100 ] loss = 0.032154 -->best
+[ Train | 002/100 ], loss = 0.009181
+[ Valid | 002/100 ] loss = 0.022051 -->best
+[ Train | 003/100 ], loss = 0.009242
+[ Valid | 003/100 ] loss = 0.015404 -->best
+[ Train | 004/100 ], loss = 0.009220
+[ Valid | 004/100 ] loss = 0.026274 
+[ Train | 005/100 ], loss = 0.007651
+[ Valid | 005/100 ] loss = 0.008976 -->best
+[ Train | 006/100 ], loss = 0.007767
+[ Valid | 006/100 ] loss = 0.367065 
+[ Train | 007/100 ], loss = 0.007381
+[ Valid | 007/100 ] loss = 0.017015 
+[ Train | 008/100 ], loss = 0.007476
+[ Valid | 008/100 ] loss = 0.008200 -->best
+[ Train | 009/100 ], loss = 0.007539
+[ Valid | 009/100 ] loss = 0.005446 -->best
+[ Train | 010/100 ], loss = 0.006549
+[ Valid | 010/100 ] loss = 0.006360 
+[ Train | 011/100 ], loss = 0.006587
+[ Valid | 011/100 ] loss = 0.012793 
+[ Train | 012/100 ], loss = 0.007721
+[ Valid | 012/100 ] loss = 0.004960 -->best
+[ Train | 013/100 ], loss = 0.006807
+[ Valid | 013/100 ] loss = 0.019899 
+[ Train | 014/100 ], loss = 0.005628
+[ Valid | 014/100 ] loss = 0.006850 
+[ Train | 015/100 ], loss = 0.005426
+[ Valid | 015/100 ] loss = 0.021189 
+[ Train | 016/100 ], loss = 0.006964
+[ Valid | 016/100 ] loss = 0.010124 
+[ Train | 017/100 ], loss = 0.005476
+[ Valid | 017/100 ] loss = 0.008210 
+[ Train | 018/100 ], loss = 0.006488
+[ Valid | 018/100 ] loss = 0.011594 
+[ Train | 019/100 ], loss = 0.005214
+[ Valid | 019/100 ] loss = 0.023387 
+[ Train | 020/100 ], loss = 0.005791
+[ Valid | 020/100 ] loss = 0.008878 
+[ Train | 021/100 ], loss = 0.005618
+[ Valid | 021/100 ] loss = 0.007187 
+[ Train | 022/100 ], loss = 0.005677
+[ Valid | 022/100 ] loss = 0.002554 -->best
+[ Train | 023/100 ], loss = 0.006465
+[ Valid | 023/100 ] loss = 0.419241 
+[ Train | 024/100 ], loss = 0.005666
+[ Valid | 024/100 ] loss = 0.009732 
+[ Train | 025/100 ], loss = 0.006406
+[ Valid | 025/100 ] loss = 0.044399 
+[ Train | 026/100 ], loss = 0.005511
+[ Valid | 026/100 ] loss = 0.003215 
+[ Train | 027/100 ], loss = 0.005677
+[ Valid | 027/100 ] loss = 0.002755 
+[ Train | 028/100 ], loss = 0.005590
+[ Valid | 028/100 ] loss = 0.012617 
+[ Train | 029/100 ], loss = 0.005023
+[ Valid | 029/100 ] loss = 0.002801 
+[ Train | 030/100 ], loss = 0.005560
+[ Valid | 030/100 ] loss = 0.004543 
+[ Train | 031/100 ], loss = 0.005487
+[ Valid | 031/100 ] loss = 0.011231 
+[ Train | 032/100 ], loss = 0.004643
+[ Valid | 032/100 ] loss = 0.007152 
+[ Train | 033/100 ], loss = 0.004696
+[ Valid | 033/100 ] loss = 0.002520 -->best
+[ Train | 034/100 ], loss = 0.005184
+[ Valid | 034/100 ] loss = 0.020527 
+[ Train | 035/100 ], loss = 0.005573
+[ Valid | 035/100 ] loss = 0.003993 
+[ Train | 036/100 ], loss = 0.005626
+[ Valid | 036/100 ] loss = 0.003577 
+[ Train | 037/100 ], loss = 0.005126
+[ Valid | 037/100 ] loss = 0.004530 
+[ Train | 038/100 ], loss = 0.005901
+[ Valid | 038/100 ] loss = 0.003436 
+[ Train | 039/100 ], loss = 0.005530
+[ Valid | 039/100 ] loss = 0.002358 -->best
+[ Train | 040/100 ], loss = 0.005834
+[ Valid | 040/100 ] loss = 0.008691 
+[ Train | 041/100 ], loss = 0.005300
+[ Valid | 041/100 ] loss = 0.006091 
+[ Train | 042/100 ], loss = 0.005584
+[ Valid | 042/100 ] loss = 0.005331
+[ Train | 043/100 ], loss = 0.005911
+[ Valid | 043/100 ] loss = 0.001614 -->best
+[ Train | 044/100 ], loss = 0.005230
+[ Valid | 044/100 ] loss = 0.005406 
+[ Train | 043/100 ], loss = 0.005911
+[ Valid | 043/100 ] loss = 0.001614 -->best
+[ Train | 044/100 ], loss = 0.005230
+[ Valid | 044/100 ] loss = 0.005406 
+[ Train | 045/100 ], loss = 0.005233
+[ Valid | 045/100 ] loss = 0.010814 
+[ Train | 046/100 ], loss = 0.004883
+[ Valid | 046/100 ] loss = 0.006700 
+[ Train | 047/100 ], loss = 0.004848
+[ Valid | 047/100 ] loss = 0.011316 
+[ Train | 048/100 ], loss = 0.005092
+[ Valid | 048/100 ] loss = 0.003964 
+[ Train | 049/100 ], loss = 0.005153
+[ Valid | 049/100 ] loss = 0.003591 
+[ Train | 050/100 ], loss = 0.005366
+[ Valid | 050/100 ] loss = 0.003814 
+[ Train | 051/100 ], loss = 0.004893
+[ Valid | 051/100 ] loss = 0.002855 
+[ Train | 052/100 ], loss = 0.004798
+[ Valid | 052/100 ] loss = 0.009787 
+[ Train | 053/100 ], loss = 0.005409
+[ Valid | 053/100 ] loss = 0.003354 
+[ Train | 054/100 ], loss = 0.005091
+[ Valid | 054/100 ] loss = 0.002354 
+[ Train | 055/100 ], loss = 0.004791
+[ Valid | 055/100 ] loss = 0.004615 
+[ Train | 056/100 ], loss = 0.005241
+[ Valid | 056/100 ] loss = 0.005556 
+[ Train | 057/100 ], loss = 0.004956
+[ Valid | 057/100 ] loss = 0.221882 
+[ Train | 058/100 ], loss = 0.004581
+[ Valid | 058/100 ] loss = 0.003349 
+[ Train | 059/100 ], loss = 0.005528
+[ Valid | 059/100 ] loss = 0.004575 

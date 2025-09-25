@@ -5,12 +5,11 @@ import numpy as np
 import torchvision as tv
 import matplotlib.pyplot as plt
 from scipy.io import loadmat
-
+from torch.nn import functional as func
 from torchvision.transforms import functional as TF
 from PIL import Image
 from torch.utils.data import Dataset, Subset
 from torchvision.utils import save_image
-from torch.nn import functional as func
 
 from utils import *
 
@@ -20,12 +19,55 @@ transform = tv.transforms.Compose(
         tv.transforms.RandomHorizontalFlip(p=0.5),
         tv.transforms.RandomVerticalFlip(p=0.5),
         tv.transforms.RandomRotation(
-            (0, 359),
-            interpolation=tv.transforms.InterpolationMode.BILINEAR,
-            expand=False,
+            degrees=30, interpolation=tv.transforms.InterpolationMode.BILINEAR
         ),
     ]
 )
+
+
+class mnistDataset(Dataset):
+    def __init__(self, mode):
+        self.mode = mode
+        is_train = self.mode == "train" or self.mode == "valid"
+        self.data = tv.datasets.MNIST(
+            "../data",
+            train=is_train,
+            transform=None,
+            target_transform=None,
+            download=True,
+        )
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        img = self.data[idx][0]
+        img = np.array(img, dtype=np.float32)
+        img = (img - np.min(img)) / (np.max(img) - np.min(img))
+        y = torch.from_numpy(img).unsqueeze(dim=0)
+        if self.mode == "train" or self.mode == "valid":
+            y = transform(y)
+        y = y * torch.pi
+
+        u0 = torch.exp(1j * y)
+        u_delta_z = fresnel_prop_torch(u0)
+        I_delta_z = torch.abs(u_delta_z) ** 2
+
+        x = I_delta_z.to(torch.float32)
+        # x = func.normalize(x)
+        x = tv.transforms.Normalize(2.821432, 1.643254)(x)
+
+        return x, y
+
+    def get_random_batch(self, batch_size):
+        indices = random.sample(range(len(self)), batch_size)
+        batch = [self[i] for i in indices]
+        x_batch, y_batch = zip(*batch)
+
+        x_batch = torch.stack(x_batch)
+        y_batch = torch.stack(y_batch)
+
+        return x_batch, y_batch
 
 
 class sourceDataset(Dataset):
@@ -60,16 +102,19 @@ class sourceDataset(Dataset):
         return len(self.images_list)
 
     def __getitem__(self, idx):
-        # x : input I(z=dz), y : groundtruth phi(z=0)
+        """
+        x : input I(z=dz)
+        y : groundtruth ø(z=0)
+        """
+
         img = Image.open(self.images_list[idx])
         img = np.maximum(img, 0)
         img = (img - np.min(img)) / (np.max(img) - np.min(img))
-        max_rad = 1 * torch.pi
         y = torch.from_numpy(img).unsqueeze(dim=0)
-        if self.mode == "train":
+        if self.mode == "train" or self.mode == "valid":
             y = transform(y)
-        y = y * max_rad
 
+        y = y * torch.pi
         u0 = torch.exp(1j * y)
         z = random.gauss(mu=10e-6, sigma=0)
         _lambda = random.gauss(mu=4e-7, sigma=0)
@@ -77,13 +122,13 @@ class sourceDataset(Dataset):
         I_delta_z = torch.abs(u_delta_z) ** 2
 
         x = I_delta_z.to(torch.float32)
-        x = x / torch.mean(I_delta_z)
-        noise = generate_noise(x)
-        x = x + noise
-
+        x = tv.transforms.Normalize(0.99999017, 0.00430547)(x)
         return x, y
 
     def get_random_batch(self, batch_size):
+        """
+        For inference in training
+        """
         indices = random.sample(range(len(self)), batch_size)
         batch = [self[i] for i in indices]
         x_batch, y_batch = zip(*batch)
@@ -171,14 +216,25 @@ class targetDataset(Dataset):
         return x_batch, y_batch
 
 
-# test_set = targetDataset(mode="test", path="../data/0226/test")
+# dataset = sourceDataset(mode="test")
+# x, y = dataset.__getitem__(20)
+# print(x.shape)
+# print(y.shape)
 
-# dataset = sourceDataset(mode="train")
-# print(len(dataset))
-# x, y = test_set.__getitem__(1)
-# print(x.shape)
-# print(y.shape)
-# x, y = dataset.get_random_batch(4)
-# # plt.savefig("temp.png")
-# print(x.shape)
-# print(y.shape)
+# # Plot and save x and y
+# plt.figure(figsize=(8, 4))
+# ax1 = plt.subplot(1, 2, 1)
+# im1 = ax1.imshow(x.squeeze().cpu().numpy(), cmap="gray")
+# plt.title("x")
+# plt.axis("off")
+# plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+
+# ax2 = plt.subplot(1, 2, 2)
+# im2 = ax2.imshow(y.squeeze().cpu().numpy(), cmap="viridis")
+# plt.title("y")
+# plt.axis("off")
+# plt.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
+
+# plt.tight_layout()
+# plt.savefig("temp.png")
+# plt.close()

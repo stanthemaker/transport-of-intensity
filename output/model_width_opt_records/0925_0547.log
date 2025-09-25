@@ -1,0 +1,72 @@
+{
+    "Optimizer": "Adam",
+    "batch_size": 12,
+    "lr": 2e-05,
+    "weight_decay": 0.0002,
+    "n_epochs": 100,
+    "patience": 15,
+    "dropout_rate": 0.2,
+    "max_rad": "1 \u03c0",
+    "exp_name": "0925_0547_0925_0547_benchmark_sync"
+}
+a = 0.25
+self.down_path = nn.ModuleList(
+    [
+        DoubleConv(in_dim, int(64 * a)),
+        Down(int(64 * a), int(128 * a)),
+        Down(int(128 * a), int(256 * a)),
+        Down(int(256 * a), int(512 * a)),
+        Down(int(512 * a), int(512 * a)),
+    ]
+)
+
+self.up_path = nn.ModuleList(
+    [
+        Up(int(1024 * a), int(512 * a // factor), bilinear),
+        Up(int(512 * a), int(256 * a // factor), bilinear),
+        Up(int(256 * a), int(128 * a // factor), bilinear),
+        Up(int(128 * a), int(64 * a)),
+    ]
+)
+self.outc = OutConv(int(64 * a), out_dim)[ Train | 001/100 ], loss = 0.020073
+[ Valid | 001/100 ] loss = 0.010585 -->best
+[ Train | 002/100 ], loss = 0.010211
+[ Valid | 002/100 ] loss = 0.013838 
+[ Train | 003/100 ], loss = 0.008348
+[ Valid | 003/100 ] loss = 0.028351 
+[ Train | 004/100 ], loss = 0.007476
+[ Valid | 004/100 ] loss = 0.011446 
+[ Train | 005/100 ], loss = 0.007756
+[ Valid | 005/100 ] loss = 0.003732 -->best
+[ Train | 006/100 ], loss = 0.007493
+[ Valid | 006/100 ] loss = 0.013745 
+[ Train | 007/100 ], loss = 0.007663
+[ Valid | 007/100 ] loss = 0.017436 
+[ Train | 008/100 ], loss = 0.006699
+[ Valid | 008/100 ] loss = 0.018537 
+[ Train | 009/100 ], loss = 0.007371
+[ Valid | 009/100 ] loss = 0.011187 
+[ Train | 010/100 ], loss = 0.006602
+[ Valid | 010/100 ] loss = 0.156581 
+[ Train | 011/100 ], loss = 0.006250
+[ Valid | 011/100 ] loss = 0.023233 
+[ Train | 012/100 ], loss = 0.007116
+[ Valid | 012/100 ] loss = 0.006653 
+[ Train | 013/100 ], loss = 0.005632
+[ Valid | 013/100 ] loss = 0.005224 
+[ Train | 014/100 ], loss = 0.005706
+[ Valid | 014/100 ] loss = 0.006795 
+[ Train | 015/100 ], loss = 0.006520
+[ Valid | 015/100 ] loss = 0.037018 
+[ Train | 016/100 ], loss = 0.005659
+[ Valid | 016/100 ] loss = 0.008430 
+[ Train | 017/100 ], loss = 0.004778
+[ Valid | 017/100 ] loss = 0.005440 
+[ Train | 018/100 ], loss = 0.005190
+[ Valid | 018/100 ] loss = 0.010231 
+[ Train | 019/100 ], loss = 0.005555
+[ Valid | 019/100 ] loss = 0.079420 
+[ Train | 020/100 ], loss = 0.005666
+[ Valid | 020/100 ] loss = 0.013476 
+[ Train | 021/100 ], loss = 0.005745
+[ Valid | 021/100 ] loss = 1.198915 
