@@ -149,9 +149,6 @@ class targetDataset(Dataset):
         self.gt_list = sorted(
             [os.path.join(path, x) for x in os.listdir(path) if x.endswith("_tie.mat")]
         )
-        self.ref_list = sorted(
-            [os.path.join(path, x) for x in os.listdir(path) if x.endswith("_ref.mat")]
-        )
 
     def __len__(self):
         return len(self.images_list)

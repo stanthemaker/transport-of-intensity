@@ -1,17 +1,5 @@
-import piqa
-import torch
-import numpy as np
-import os, argparse, json
-from datetime import datetime
-from torch.utils.data import DataLoader
-import torch.nn as nn
-from tqdm.auto import tqdm
-from torchvision.transforms import functional as tf
-
-# Customized packages.
-from utils import *
-from unet import UNet
-from dataset import sourceDataset, targetDataset
+import os
+import argparse
 
 
 def get_args():
@@ -25,18 +13,42 @@ def get_args():
         default=0,
         help="device ID",
     )
-    parser.add_argument(
-        "--model", "-m", type=str, default=None, help="Model path to load"
-    )
 
     return parser.parse_args()
 
 
 args = get_args()
-exp_name = "params"
+
+os.environ["CUDA_VISIBLE_DEVICES"] = str(args.device)
+import torch
+import json
+import numpy as np
+import torch.nn as nn
+from tqdm.auto import tqdm
+from datetime import datetime
+
+from torch.utils.data import DataLoader
+from torchvision.transforms import functional as tf
+
+# Customized packages.
+from utils import *
+from unet import UNet
+from dataset import sourceDataset
+
+exp_name = "benchmark_sync"
 dt_string = datetime.now().strftime("%m%d_%H%M_")
 exp_name = dt_string + exp_name
-
+config = {
+    "Optimizer": "Adam",
+    "batch_size": 12,
+    "lr": 2e-5,
+    "weight_decay": 2e-4,
+    "n_epochs": 100,
+    "patience": 15,
+    "dropout_rate": 0.2,
+    "max_rad": "1 π",
+    "exp_name": dt_string + exp_name,
+}
 output_dir = f"../output/{exp_name}"
 log_file = f"../output/{exp_name}/training_record.log"
 ckpt_file = f"../output/{exp_name}/model.ckpt"
@@ -44,30 +56,19 @@ ckpt_file = f"../output/{exp_name}/model.ckpt"
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
 
-config = {
-    "Optimizer": "Adam",
-    "batch_size": 4,
-    "lr": 2e-7,
-    "lambda_src_mse": 1.5,
-    "lambda_tgt_mse": 1,
-    "lambda_mdd": 1e-7,
-    "n_epochs": 1000,
-    "inference_step": 50,
-    "exp_name": exp_name,
-}
-
-with open(os.path.join(output_dir, "config.json"), "w") as f:
+with open(log_file, "a") as f:
     json.dump(config, f, indent=4)
+    f.write("\n")
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-myseed = 7777
+myseed = 3041
 np.random.seed(myseed)
 torch.manual_seed(myseed)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(myseed)
-device = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
-print(device)
+device = f"cuda:{0}" if torch.cuda.is_available() else "cpu"
+print(f"device = {args.device}")
 
 source_train_set = sourceDataset(mode="train")
 target_train_set = targetDataset(mode="train", path="../data/0226/train")
